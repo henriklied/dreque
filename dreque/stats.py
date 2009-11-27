@@ -29,4 +29,4 @@ class StatsCollector(object):
         self.store.delete(self._key(key))
 
     def _key(self, key):
-        return "%s:stat:%s" % (self.prefix, key)
+        return "%sstat:%s" % (self.prefix, key)

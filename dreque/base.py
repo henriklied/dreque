@@ -1,12 +1,18 @@
 
-import json
+try:
+    import json
+except ImportError:
+    import simplejson as json
+import logging
 import time
 from redis import Redis
 
 from dreque.stats import StatsCollector
 
 class Dreque(object):
-    def __init__(self, server, db=None):
+    def __init__(self, server, db=None, key_prefix="dreque:"):
+        self.log = logging.getLogger("dreque")
+
         if isinstance(server, (tuple, list)):
             host, port = server
             self.redis = Redis(server[0], server[1], db=db)
@@ -18,8 +24,10 @@ class Dreque(object):
             self.redis = Redis(host, port, db=db)
         else:
             self.redis = server
+
+        self.key_prefix = key_prefix
         self.watched_queues = set()
-        self.stats = StatsCollector(self.redis, "dreque")
+        self.stats = StatsCollector(self.redis, self.key_prefix)
 
     # Low level
 
@@ -28,11 +36,12 @@ class Dreque(object):
         self.redis.push(self._queue_key(queue), self.encode(item))
 
     def pop(self, queue):
-        return self.decode(self.redis.pop(self._queue_key(queue)))
+        msg = self.redis.pop(self._queue_key(queue))
+        return self.decode(msg) if msg else None
 
     def poppush(self, source_queue, dest_queue):
         msg = self.redis.poppush(self._queue_key(source_queue), self._queue_key(dest_queue))
-        return self.decode(msg)
+        return self.decode(msg) if msg else None
 
     def size(self, queue):
         return self.redis.llen(self._queue_key(queue))
@@ -46,20 +55,26 @@ class Dreque(object):
         else:
             return [self.decode(x) for x in self.redis.lrange(key, start, start+count-1)]
 
-    # Workers
+    # High level
 
-    def grab_one(self, queues, worker_queue=None, grab_for=60*60):
+    def enqueue(self, queue, func, *args, **kwargs):
+        func_path = "%s.%s" % (func.__module__, func.__name__)
+        self.push(queue, dict(func=func_path, args=args, kwargs=kwargs))
+
+    def dequeue(self, queues, worker_queue=None):
         now = time.time()
-        expires = now + grab_for
         for q in queues:
             if worker_queue:
-                msg = self.poppush(q, worker_queue)
+                msg = self.redis.poppush(self._queue_key(source_queue), self._redis_key(dest_queue))
+                if msg:
+                    msg = self.decode(msg)
             else:
                 msg = self.pop(q)
             if msg:
+                msg['queue'] = q
                 return msg
-
-    # Queue level
+ 
+    # Queue methods
 
     def queues(self):
         return self.redis.smembers(self._queue_set_key())
@@ -89,4 +104,4 @@ class Dreque(object):
         return self._redis_key("queues")
 
     def _redis_key(self, key):
-        return "deque:" + key
+        return self.key_prefix + key
