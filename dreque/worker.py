@@ -54,20 +54,6 @@ class DrequeWorker(Dreque):
         self.stats.clear("processed:"+self.worker_id)
         self.stats.clear("failed:"+self.worker_id)
 
-    def workers(self):
-        return self.redis.smembers(self._redis_key("workers"))
-
-    def working(self):
-        workers = self.list_workers()
-        if not workers:
-            return []
-
-        keys = [self._redis_key("worker:"+x) for x in workers]
-        return dict((x, y) for x, y in zip(self.redis.mget(workers, keys)))
-
-    def worker_exists(self, worker_id):
-        return self.redis.sismember(self._redis_key("workers"), worker_id)
-
     def working_on(self, job):
         self.redis.set(self._redis_key("worker:"+self.worker_id),
             dict(
@@ -102,3 +88,19 @@ class DrequeWorker(Dreque):
             func = getattr(mod, func_name)
             self.function_cache[name] = func
         return func
+
+    #
+
+    def workers(self):
+        return self.redis.smembers(self._redis_key("workers"))
+
+    def working(self):
+        workers = self.list_workers()
+        if not workers:
+            return []
+
+        keys = [self._redis_key("worker:"+x) for x in workers]
+        return dict((x, y) for x, y in zip(self.redis.mget(workers, keys)))
+
+    def worker_exists(self, worker_id):
+        return self.redis.sismember(self._redis_key("workers"), worker_id)
