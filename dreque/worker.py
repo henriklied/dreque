@@ -23,15 +23,22 @@ class DrequeWorker(Dreque):
                     if interval == 0:
                         break
                     time.sleep(interval)
+                    continue
 
                 try:
                     self.working_on(job)
                     self.process(job)
                 except Exception, exc:
-                    self.log.info("Job failed (%s): %s" % (job, str(exc)))
+                    import traceback
+                    self.log.info("Job failed (%s): %s\n%s" % (job, str(exc), traceback.format_exc()))
                     # Requeue
                     queue = job.pop("queue")
-                    self.push(queue, job)
+                    if 'fails' not in job:
+                        job['fails'] = 1
+                    else:
+                        job['fails'] += 1
+                    if job['fails'] < 5:
+                        self.push(queue, job)
                     self.failed()
                 else:
                     self.done_working()
@@ -85,7 +92,7 @@ class DrequeWorker(Dreque):
             return self.function_cache[name]
         except KeyError:
             mod_name, func_name = name.rsplit('.', 1)
-            mod = __import__(mod_name, {}, {}, [func_name])
+            mod = __import__(str(mod_name), {}, {}, [str(func_name)])
             func = getattr(mod, func_name)
             self.function_cache[name] = func
         return func
