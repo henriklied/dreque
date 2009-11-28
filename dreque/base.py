@@ -58,8 +58,9 @@ class Dreque(object):
     # High level
 
     def enqueue(self, queue, func, *args, **kwargs):
-        func_path = "%s.%s" % (func.__module__, func.__name__)
-        self.push(queue, dict(func=func_path, args=args, kwargs=kwargs))
+        if not isinstance(func, basestring):
+            func = "%s.%s" % (func.__module__, func.__name__)
+        self.push(queue, dict(func=func, args=args, kwargs=kwargs))
 
     def dequeue(self, queues, worker_queue=None):
         now = time.time()

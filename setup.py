@@ -4,14 +4,18 @@ from distutils.core import setup
 
 from dreque import __version__ as version
 
+dependencies = ["redis"]
+
 setup(
     name = 'dreque',
     version = version,
-    description = 'Job queueing library',
+    description = 'Persistent job queueing library using Redis inspired by Resque',
     author = 'Samuel Stauffer',
     author_email = 'samuel@lefora.com',
     url = 'http://github.com/samuel/dreque',
     packages = ['dreque'],
+    requires = dependencies,
+    install_requires = dependencies,
     classifiers = [
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
