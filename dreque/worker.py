@@ -4,6 +4,7 @@ import logging
 import socket
 import time
 from dreque.base import Dreque
+from dreque.utils import setprocname
 
 class DrequeWorker(Dreque):
     def __init__(self, queues, server, db=None):
@@ -55,12 +56,14 @@ class DrequeWorker(Dreque):
 
         p = Process(target=self.dispatch, args=(job,))
         p.start()
+        setprocname("dreque: Forked %d at %d" % (p.pid, time.time()))
         p.join()
 
         if p.exitcode != 0:
             raise Exception("Job failed")
 
     def dispatch(self, job):
+        setprocname("dreque: Processing %s since %d" % (job['queue'], time.time()))
         func = self.lookup_function(job['func'])
         kwargs = dict((str(k), v) for k, v in job['kwargs'].items())
         func(*job['args'], **kwargs)
