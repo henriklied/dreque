@@ -29,7 +29,7 @@ class DrequeWorker(Dreque):
 
                 try:
                     self.working_on(job)
-                    self.process(job.copy())
+                    self.process(job)
                 except Exception, exc:
                     import traceback
                     self.log.info("Job failed (%s): %s\n%s" % (job, str(exc), traceback.format_exc()))
@@ -51,6 +51,16 @@ class DrequeWorker(Dreque):
             self.unregister_worker()
 
     def process(self, job):
+        from multiprocessing import Process
+
+        p = Process(target=self.dispatch, args=(job,))
+        p.start()
+        p.join()
+
+        if p.exitcode != 0:
+            raise Exception("Job failed")
+
+    def dispatch(self, job):
         func = self.lookup_function(job['func'])
         kwargs = dict((str(k), v) for k, v in job['kwargs'].items())
         func(*job['args'], **kwargs)
