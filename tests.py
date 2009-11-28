@@ -1,4 +1,5 @@
 
+import time
 import unittest
 from dreque import Dreque, DrequeWorker
 
@@ -13,8 +14,7 @@ class TestDreque(unittest.TestCase):
         logging.basicConfig(level=logging.DEBUG)
         self.dreque = Dreque("127.0.0.1")
         self.queue = "test"
-        while self.dreque.pop(self.queue):
-            pass
+        self.dreque.remove_queue(self.queue)
 
     def tearDown(self):
         pass
@@ -34,16 +34,23 @@ class TestDreque(unittest.TestCase):
     def testPositionalWorker(self):
         import tests
         self.dreque.enqueue("test", tests.set_something, "worker_test")
-        worker = DrequeWorker(["test"], "127.0.0.1")
+        worker = DrequeWorker(["test"], "127.0.0.1", nofork=True)
         worker.work(0)
         self.failUnlessEqual(tests.something, "worker_test")
 
     def testKeywordWorker(self):
         import tests
         self.dreque.enqueue("test", tests.set_something, val="worker_test")
-        worker = DrequeWorker(["test"], "127.0.0.1")
+        worker = DrequeWorker(["test"], "127.0.0.1", nofork=True)
         worker.work(0)
         self.failUnlessEqual(tests.something, "worker_test")
+
+    def testDelayedJob(self):
+        import tests
+        self.dreque.enqueue("test", tests.set_something, val="worker_test", _delay=1)
+        self.failUnlessEqual(self.dreque.dequeue("test"), None)
+        time.sleep(1.5)
+        self.failUnlessEqual(self.dreque.dequeue(["test"]), dict(queue="test", func="tests.set_something", args=[], kwargs={'val':"worker_test"}))
 
 if __name__ == '__main__':
     unittest.main()

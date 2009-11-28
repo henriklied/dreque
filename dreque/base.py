@@ -5,7 +5,7 @@ except ImportError:
     import simplejson as json
 import logging
 import time
-from redis import Redis
+from redis import Redis, ResponseError
 
 from dreque.stats import StatsCollector
 
@@ -31,11 +31,39 @@ class Dreque(object):
 
     # Low level
 
-    def push(self, queue, item):
+    def push(self, queue, item, delay=None):
         self.watch_queue(queue)
-        self.redis.push(self._queue_key(queue), self.encode(item))
+
+        if delay:
+            if delay < 31536000:
+                delay = int(delay + time.time())
+            # TODO: In Redis>=1.1 can use an ordered set: zadd(delayed, delay, encoded_item)
+            self.redis.push(self._delayed_key(queue), "%.12x:%s" % (delay, self.encode(item)))
+        else:
+            self.redis.push(self._queue_key(queue), self.encode(item))
+
+    def check_delayed(self, queue, num=10):
+        """Check for available jobs in the delayed queue and move them to the live queue"""
+        # TODO: In Redis>=1.1 can use an ordered set: zrangebyscore(delayed, 0, current_time)
+        delayed_key = self._delayed_key(queue)
+        queue_key = self._queue_key(queue)
+        try:
+            jobs = self.redis.sort(delayed_key, num=num, alpha=True)
+        except ResponseError, exc:
+            if str(exc) != "no such key":
+                raise
+            return
+        now = time.time()
+        for j in jobs:
+            available, encoded_job = j.split(':', 1)
+            available = int(available, 16)
+            if available < now:
+                if self.redis.lrem(delayed_key, j) > 0:
+                    # Only copy the job if it still exists.. nobody else got to it first
+                    self.redis.push(queue_key, encoded_job)
 
     def pop(self, queue):
+        self.check_delayed(queue)
         msg = self.redis.pop(self._queue_key(queue))
         return self.decode(msg) if msg else None
 
@@ -58,9 +86,10 @@ class Dreque(object):
     # High level
 
     def enqueue(self, queue, func, *args, **kwargs):
+        delay = kwargs.pop('_delay', None)
         if not isinstance(func, basestring):
             func = "%s.%s" % (func.__module__, func.__name__)
-        self.push(queue, dict(func=func, args=args, kwargs=kwargs))
+        self.push(queue, dict(func=func, args=args, kwargs=kwargs), delay)
 
     def dequeue(self, queues, worker_queue=None):
         now = time.time()
@@ -84,6 +113,7 @@ class Dreque(object):
         self.watched_queues.discard(queue)
         self.redis.srem(self._queue_set_key(), queue)
         self.redis.delete(self._queue_key(queue))
+        self.redis.delete(self._delayed_key(queue))
 
     def watch_queue(self, queue):
         if queue not in self.watched_queues:
@@ -103,6 +133,9 @@ class Dreque(object):
 
     def _queue_set_key(self):
         return self._redis_key("queues")
+
+    def _delayed_key(self, queue):
+        return self._redis_key("delayed:" + queue)
 
     def _redis_key(self, key):
         return self.key_prefix + key

@@ -7,7 +7,7 @@ from dreque.base import Dreque
 from dreque.utils import setprocname
 
 class DrequeWorker(Dreque):
-    def __init__(self, queues, server, db=None):
+    def __init__(self, queues, server, db=None, nofork=False):
         self.queues = queues
         self.function_cache = {}
         super(DrequeWorker, self).__init__(server, db)
@@ -15,6 +15,7 @@ class DrequeWorker(Dreque):
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
         self.worker_id = "%s:%d" % (self.hostname, self.pid)
+        self.nofork = nofork
 
     def work(self, interval=5):
         self.register_worker()
@@ -43,8 +44,8 @@ class DrequeWorker(Dreque):
                         job['fails'] = 1
                     else:
                         job['fails'] += 1
-                    if job['fails'] < 5:
-                        self.push(queue, job)
+                    if job['fails'] < 10:
+                        self.push_delayed(queue, job, 2**job['fails'])
                     self.failed()
                 else:
                     self.done_working()
@@ -55,15 +56,18 @@ class DrequeWorker(Dreque):
             self.unregister_worker()
 
     def process(self, job):
-        from multiprocessing import Process
+        if self.nofork:
+            self.dispatch(job)
+        else:
+            from multiprocessing import Process
 
-        p = Process(target=self.dispatch, args=(job,))
-        p.start()
-        setprocname("dreque: Forked %d at %d" % (p.pid, time.time()))
-        p.join()
+            p = Process(target=self.dispatch, args=(job,))
+            p.start()
+            setprocname("dreque: Forked %d at %d" % (p.pid, time.time()))
+            p.join()
 
-        if p.exitcode != 0:
-            raise Exception("Job failed")
+            if p.exitcode != 0:
+                raise Exception("Job failed")
 
     def dispatch(self, job):
         setprocname("dreque: Processing %s since %d" % (job['queue'], time.time()))
