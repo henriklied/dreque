@@ -19,12 +19,15 @@ class DrequeWorker(Dreque):
     def work(self, interval=5):
         self.register_worker()
 
+        setprocname("dreque: Starting")
+
         try:
             while True:
                 job = self.dequeue(self.queues)
                 if not job:
                     if interval == 0:
                         break
+                    setprocname("dreque: Waiting for %s" % ",".join(self.queues))
                     time.sleep(interval)
                     continue
 
