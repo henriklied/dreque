@@ -43,7 +43,8 @@ class DrequeWorker(Dreque):
 
     def process(self, job):
         func = self.lookup_function(job['func'])
-        func(*job['args'], **job['kwargs'])
+        kwargs = dict((str(k), v) for k, v in job['kwargs'].items())
+        func(*job['args'], **kwargs)
 
     def register_worker(self):
         self.redis.sadd(self._redis_key("workers"), self.worker_id)

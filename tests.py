@@ -31,13 +31,18 @@ class TestDreque(unittest.TestCase):
         self.dreque.enqueue("test", tests.set_something, keyword="argument")
         self.failUnlessEqual(self.dreque.dequeue(["test"]), dict(queue="test", func="tests.set_something", args=[], kwargs={'keyword':"argument"}))
 
-    def testWorker(self):
+    def testPositionalWorker(self):
         import tests
         self.dreque.enqueue("test", tests.set_something, "worker_test")
-
         worker = DrequeWorker(["test"], "127.0.0.1")
         worker.work(0)
+        self.failUnlessEqual(tests.something, "worker_test")
 
+    def testKeywordWorker(self):
+        import tests
+        self.dreque.enqueue("test", tests.set_something, val="worker_test")
+        worker = DrequeWorker(["test"], "127.0.0.1")
+        worker.work(0)
         self.failUnlessEqual(tests.something, "worker_test")
 
 if __name__ == '__main__':
