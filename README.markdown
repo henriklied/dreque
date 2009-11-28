@@ -17,17 +17,17 @@ Usage
 
 Submitting jobs:
 
-from dreque import Dreque
+    from dreque import Dreque
 
-def some_job(argument):
-    pass
+    def some_job(argument):
+        pass
 
-dreque = Dreque("127.0.0.1")
-dreque.enqueue("queue", some_job, argument="foo")
+    dreque = Dreque("127.0.0.1")
+    dreque.enqueue("queue", some_job, argument="foo")
 
 Worker:
 
-from dreque import DrequeWorker
+    from dreque import DrequeWorker
 
-worker = DrequeWorker(["queue"], "127.0.0.1")
-worker.work()
+    worker = DrequeWorker(["queue"], "127.0.0.1")
+    worker.work()
