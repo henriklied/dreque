@@ -1,4 +1,5 @@
 
+import os
 import logging
 import socket
 import time
@@ -11,7 +12,8 @@ class DrequeWorker(Dreque):
         super(DrequeWorker, self).__init__(server, db)
         self.log = logging.getLogger("dreque.worker")
         self.hostname = socket.gethostname()
-        self.worker_id = "%s:%d"
+        self.pid = os.getpid()
+        self.worker_id = "%s:%d" % (self.hostname, self.pid)
 
     def work(self, interval=5):
         self.register_worker()
@@ -27,7 +29,7 @@ class DrequeWorker(Dreque):
 
                 try:
                     self.working_on(job)
-                    self.process(job)
+                    self.process(job.copy())
                 except Exception, exc:
                     import traceback
                     self.log.info("Job failed (%s): %s\n%s" % (job, str(exc), traceback.format_exc()))
